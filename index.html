@@ -1,0 +1,1535 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>SO Rempah — Stok Opname Harian</title>
+<meta name="theme-color" content="#5b3a29">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%235b3a29%22/><text x=%2250%22 y=%2268%22 font-size=%2258%22 text-anchor=%22middle%22 fill=%22%23e8c468%22 font-family=%22serif%22>幸</text></svg>">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --bark:#3d2b1f;
+    --bark-2:#5b3a29;
+    --clay:#a5623f;
+    --clay-2:#c97b4f;
+    --gold:#d9a441;
+    --gold-soft:#e8c468;
+    --cream:#f7f0e3;
+    --paper:#fffaf0;
+    --ink:#2a1d15;
+    --ink-soft:#6b5645;
+    --line:#e2d4bb;
+    --ok:#4c7a4c;
+    --warn:#b5502e;
+    --danger:#a3352c;
+    --radius:14px;
+    --radius-sm:9px;
+    font-size:16px;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 10% -10%, #6b4530 0%, transparent 60%),
+      linear-gradient(180deg, var(--bark) 0%, var(--bark-2) 340px, var(--cream) 340px, var(--cream) 100%);
+    color:var(--ink);
+    font-family: "Iowan Old Style","Georgia","Noto Serif",serif;
+    min-height:100vh;
+    padding-bottom:64px;
+  }
+  .utility{ font-family:"Menlo","SF Mono","Consolas",monospace; letter-spacing:0.02em; }
+
+  header.top{
+    padding:28px 18px 20px;
+    color:var(--gold-soft);
+    max-width:720px;
+    margin:0 auto;
+  }
+  .brand-mark{
+    display:flex; align-items:center; gap:12px; margin-bottom:14px;
+  }
+  .brand-mark .glyph{
+    width:42px;height:42px;border-radius:10px;
+    background:linear-gradient(155deg,var(--gold-soft),var(--clay));
+    display:flex;align-items:center;justify-content:center;
+    font-size:22px; color:var(--bark); font-weight:700;
+    box-shadow:0 4px 14px rgba(0,0,0,.35);
+    flex-shrink:0;
+  }
+  .brand-mark .txt{ line-height:1.15; }
+  .brand-mark .txt b{ display:block; font-size:20px; color:#fff; font-weight:600; letter-spacing:.01em;}
+  .brand-mark .txt span{ font-size:12.5px; color:var(--gold-soft); opacity:.85; font-family:"Menlo",monospace; letter-spacing:.04em;}
+
+  .date-row{
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-family:"Menlo",monospace; font-size:12.5px; color:#d8c4a0; opacity:.9;
+    border-top:1px solid rgba(255,255,255,.12); padding-top:12px;
+  }
+
+  main{ max-width:720px; margin:-10px auto 0; padding:0 14px; position:relative; }
+
+  .tabs{
+    display:flex; gap:6px; background:var(--paper);
+    border-radius:16px; padding:6px;
+    box-shadow:0 10px 30px -12px rgba(61,43,31,.35), 0 1px 0 rgba(0,0,0,.03);
+    margin-bottom:16px; position:sticky; top:8px; z-index:30;
+    overflow-x:auto; scrollbar-width:none;
+  }
+  .tabs::-webkit-scrollbar{display:none;}
+  .tab{
+    flex:1; min-width:78px; text-align:center; padding:9px 6px;
+    border-radius:11px; font-size:12.5px; font-weight:600; color:var(--ink-soft);
+    cursor:pointer; user-select:none; white-space:nowrap; transition:.15s;
+    border:1px solid transparent;
+  }
+  .tab.active{ background:var(--bark); color:var(--gold-soft); box-shadow:0 4px 10px -4px rgba(61,43,31,.5);}
+
+  .panel{ display:none; animation:fade .25s ease; }
+  .panel.active{ display:block; }
+  @keyframes fade{ from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);} }
+
+  .card{
+    background:var(--paper); border-radius:var(--radius);
+    padding:16px; margin-bottom:12px;
+    box-shadow:0 1px 0 rgba(0,0,0,.03), 0 8px 20px -14px rgba(61,43,31,.4);
+    border:1px solid var(--line);
+  }
+  .card h2{
+    margin:0 0 4px; font-size:16px; color:var(--bark-2); font-weight:700;
+    display:flex; align-items:center; gap:8px;
+  }
+  .card .sub{ font-size:12.5px; color:var(--ink-soft); margin:0 0 14px; line-height:1.5;}
+
+  .stock-item{
+    display:grid; grid-template-columns: 1fr auto; align-items:center;
+    padding:11px 0; border-bottom:1px solid var(--line); gap:6px;
+  }
+  .stock-item:last-child{ border-bottom:none; }
+  .stock-item .name{ font-size:14.5px; font-weight:600; color:var(--ink); display:flex; align-items:center; gap:6px;}
+  .stock-item .meta{ font-size:11.5px; color:var(--ink-soft); font-family:"Menlo",monospace; margin-top:2px;}
+  .stock-item .qty{
+    font-family:"Menlo",monospace; font-size:15px; font-weight:700; text-align:right;
+    min-width:92px; cursor:pointer; padding:4px 6px; border-radius:8px; transition:.15s;
+  }
+  .stock-item .qty:active{ background:var(--cream); }
+  .edit-pencil{
+    font-size:12px; opacity:.45; flex-shrink:0;
+  }
+  .stock-item .qty.low{ color:var(--warn); }
+  .stock-item .qty.crit{ color:var(--danger); }
+  .stock-item .qty.ok{ color:var(--ok); }
+  .edit-row{
+    grid-column: 1 / -1; display:flex; gap:8px; align-items:center;
+    padding:10px 0 4px; animation:fade .15s ease;
+  }
+  .edit-row input{
+    flex:1; padding:9px 10px; font-size:14px; border-radius:9px;
+    border:1.5px solid var(--clay-2);
+  }
+  .edit-row .btn-sm{ flex-shrink:0; }
+  .stock-bar{
+    height:5px; border-radius:3px; background:var(--line); margin-top:6px; overflow:hidden;
+  }
+  .stock-bar i{ display:block; height:100%; border-radius:3px; background:var(--ok); }
+  .stock-bar i.warn{ background:var(--warn); }
+  .stock-bar i.crit{ background:var(--danger); }
+
+  .group-label{
+    font-size:11px; text-transform:uppercase; letter-spacing:.09em; color:var(--clay);
+    font-weight:700; margin:18px 0 6px; font-family:"Menlo",monospace;
+  }
+  .group-label:first-child{ margin-top:0; }
+
+  select, input[type=number], input[type=text]{
+    width:100%; padding:11px 12px; border-radius:10px;
+    border:1.5px solid var(--line); background:#fff; font-size:15px;
+    font-family:inherit; color:var(--ink); appearance:none;
+  }
+  select:focus, input:focus{ outline:none; border-color:var(--clay-2); }
+  label.field{ display:block; margin-bottom:12px; }
+  label.field .lbl{ display:block; font-size:12.5px; font-weight:700; color:var(--ink-soft); margin-bottom:6px; }
+
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+  .chip-toggle{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:9px 12px; border-radius:20px; border:1.5px solid var(--line);
+    background:#fff; font-size:13px; font-weight:600; color:var(--ink-soft);
+    cursor:pointer; user-select:none; margin:0 6px 8px 0;
+  }
+  .chip-toggle.on{ background:var(--bark-2); border-color:var(--bark-2); color:var(--gold-soft); }
+
+  .btn{
+    display:block; width:100%; text-align:center; padding:13px 16px;
+    border-radius:12px; border:none; font-size:15px; font-weight:700;
+    cursor:pointer; font-family:inherit;
+  }
+  .btn-primary{ background:linear-gradient(155deg,var(--clay-2),var(--clay)); color:#fff; box-shadow:0 6px 16px -6px rgba(165,98,63,.6);}
+  .btn-primary:active{ transform:translateY(1px); }
+  .btn-dark{ background:var(--bark); color:var(--gold-soft); }
+  .btn-ghost{ background:transparent; color:var(--bark-2); border:1.5px solid var(--line); }
+  .btn-danger{ background:#fdecea; color:var(--danger); border:1.5px solid #f1c3bd; }
+  .btn-sm{ padding:9px 12px; font-size:13px; width:auto; border-radius:10px; }
+
+  .receipt-line{
+    display:flex; justify-content:space-between; padding:7px 0;
+    border-bottom:1px dashed var(--line); font-size:13.5px;
+  }
+  .receipt-line span:last-child{ font-family:"Menlo",monospace; font-weight:700; }
+  .receipt-line.neg span:last-child{ color:var(--danger); }
+  .receipt-line.total{ border-bottom:none; border-top:2px solid var(--ink); margin-top:6px; padding-top:10px; font-weight:700;}
+
+  .banner{
+    padding:12px 14px; border-radius:12px; font-size:13px; margin-bottom:14px;
+    display:flex; align-items:flex-start; gap:10px; line-height:1.5;
+  }
+  .banner.info{ background:#eef2ea; color:#3d5a2c; }
+  .banner.warn{ background:#fdf3e4; color:#8a5a1a; }
+  .banner.danger{ background:#fdecea; color:var(--danger); }
+
+  .empty{
+    text-align:center; padding:36px 20px; color:var(--ink-soft); font-size:13.5px;
+  }
+
+  .toast{
+    position:fixed; bottom:20px; left:50%; transform:translateX(-50%);
+    background:var(--bark); color:var(--gold-soft); padding:12px 20px;
+    border-radius:30px; font-size:13.5px; font-weight:600; z-index:100;
+    box-shadow:0 10px 30px -8px rgba(0,0,0,.5);
+    opacity:0; pointer-events:none; transition:.25s;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(-6px); }
+
+  .install-banner{
+    display:none; position:fixed; left:14px; right:14px; bottom:14px;
+    max-width:692px; margin:0 auto; background:var(--bark); color:#fff;
+    border-radius:14px; padding:13px 14px; box-shadow:0 12px 30px -8px rgba(0,0,0,.5);
+    z-index:90; align-items:center; gap:12px;
+  }
+  .install-banner b{ font-size:13.5px; display:block; }
+  .install-banner span{ font-size:11.5px; color:var(--gold-soft); }
+  .install-banner button{ margin-left:auto; flex-shrink:0; }
+
+  .history-item{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:12px 0; border-bottom:1px solid var(--line);
+  }
+  .history-item:last-child{ border-bottom:none; }
+  .history-item .d{ font-size:13.5px; font-weight:700; }
+  .history-item .s{ font-size:11.5px; color:var(--ink-soft); font-family:"Menlo",monospace;}
+
+  .menu-search{ margin-bottom:10px; }
+
+  ::selection{ background:var(--gold-soft); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="brand-mark">
+    <div class="glyph">幸</div>
+    <div class="txt">
+      <b>SO Rempah</b>
+      <span>STOK OPNAME HARIAN · GUDANG</span>
+    </div>
+  </div>
+  <div class="date-row">
+    <span id="todayLabel">—</span>
+    <span id="clockLabel">—</span>
+  </div>
+</header>
+
+<main>
+  <nav class="tabs">
+    <div class="tab active" data-tab="stok">Stok</div>
+    <div class="tab" data-tab="jual">Input Jual</div>
+    <div class="tab" data-tab="kiriman">Kiriman</div>
+    <div class="tab" data-tab="pcs">Item Pcs</div>
+    <div class="tab" data-tab="dandang">Dandang</div>
+    <div class="tab" data-tab="rusak">Rusak</div>
+    <div class="tab" data-tab="riwayat">Riwayat</div>
+  </nav>
+
+  <!-- STOK -->
+  <section class="panel active" id="panel-stok">
+    <div id="stokBanner"></div>
+    <div class="card">
+      <h2>📦 Sisa Stok Bahan Baku</h2>
+      <p class="sub">Otomatis berkurang setiap ada input penjualan minuman, item pcs, atau proses dandang. Tap tombol ✏️ pada bahan untuk mengoreksi angka jika ada salah hitung atau salah komunikasi.</p>
+      <div id="stokList"></div>
+    </div>
+    <div class="card">
+      <h2>🧾 Buat Laporan PDF</h2>
+      <p class="sub">Cetak laporan sisa stok hari ini beserta ringkasan penjualan, item pcs terjual, dan bahan rusak.</p>
+      <button class="btn btn-primary" onclick="generatePDF()">⬇️ Input Laporan PDF Hari Ini</button>
+    </div>
+    <div class="card">
+      <h2>✎ Riwayat Koreksi Stok Hari Ini</h2>
+      <p class="sub">Ketuk angka stok pada daftar di atas untuk membetulkan jumlah jika ada salah input atau salah komunikasi jumlah kiriman/penjualan.</p>
+      <div id="koreksiLog"><div class="empty">Belum ada koreksi stok hari ini.</div></div>
+    </div>
+    <div class="card">
+      <h2>⚙️ Reset Stok Awal</h2>
+      <p class="sub">Gunakan hanya saat mulai periode SO baru (kiriman dari warehouse datang). Ini akan mengisi ulang semua stok ke jumlah default & menghapus catatan transaksi hari berjalan.</p>
+      <button class="btn btn-ghost" onclick="openResetModal()">Atur Ulang Stok Awal</button>
+    </div>
+  </section>
+
+  <!-- INPUT JUAL -->
+  <section class="panel" id="panel-jual">
+    <div class="card">
+      <h2>🍵 Input Penjualan Minuman</h2>
+      <p class="sub">Pilih menu, jumlah porsi, dan apakah take away (pakai cup plastik). Bahan akan otomatis terpotong dari stok sesuai resep.</p>
+      <label class="field">
+        <span class="lbl">Menu Minuman</span>
+        <select id="menuSelect"></select>
+      </label>
+      <div class="row2">
+        <label class="field">
+          <span class="lbl">Jumlah Porsi</span>
+          <input type="number" id="menuQty" min="1" value="1" inputmode="numeric">
+        </label>
+        <label class="field">
+          <span class="lbl">Take Away?</span>
+          <select id="menuTakeaway">
+            <option value="0">Dine in (tanpa cup)</option>
+            <option value="1">Take away (pakai cup)</option>
+          </select>
+        </label>
+      </div>
+      <div id="optionalWrap"></div>
+      <div id="jualPreview"></div>
+      <button class="btn btn-primary" onclick="submitJual()">✅ Catat Penjualan & Kurangi Stok</button>
+    </div>
+
+    <div class="card">
+      <h2>📋 Transaksi Penjualan Hari Ini</h2>
+      <div id="jualLog"><div class="empty">Belum ada transaksi.</div></div>
+    </div>
+  </section>
+
+  <!-- KIRIMAN -->
+  <section class="panel" id="panel-kiriman">
+    <div class="card">
+      <h2>🚚 Kiriman Bahan Baku dari Warehouse</h2>
+      <p class="sub">Catat barang masuk hari ini. Jumlah yang diinput akan <b>ditambahkan</b> ke stok saat ini (bukan menggantikan). Bisa input beberapa bahan sekaligus dalam satu kiriman.</p>
+
+      <label class="field">
+        <span class="lbl">Jenis Bahan</span>
+        <select id="kirimanKategori">
+          <option value="bahan">Bahan Baku (rempah, cair, dll)</option>
+          <option value="pcs">Item Satuan (Pcs)</option>
+        </select>
+      </label>
+
+      <div id="kirimanRows"></div>
+
+      <button class="btn btn-ghost btn-sm" style="margin-bottom:14px;" onclick="addKirimanRow()">＋ Tambah Baris Bahan</button>
+
+      <label class="field">
+        <span class="lbl">Catatan Kiriman (opsional)</span>
+        <input type="text" id="kirimanNote" placeholder="cth: no. surat jalan, nama supplier...">
+      </label>
+
+      <div id="kirimanPreview"></div>
+      <button class="btn btn-primary" onclick="submitKiriman()">📥 Catat Kiriman & Tambah Stok</button>
+    </div>
+
+    <div class="card">
+      <h2>📋 Riwayat Kiriman Hari Ini</h2>
+      <div id="kirimanLog"><div class="empty">Belum ada kiriman tercatat.</div></div>
+    </div>
+  </section>
+
+  <!-- ITEM PCS -->
+  <section class="panel" id="panel-pcs">
+    <div class="card">
+      <h2>🍪 Penjualan Item Satuan (Pcs)</h2>
+      <p class="sub">Untuk tinting kacang, kue bangke jahe, kue bolu, dan wedang uwuh — dijual per pcs, bukan diracik.</p>
+      <label class="field">
+        <span class="lbl">Item</span>
+        <select id="pcsSelect"></select>
+      </label>
+      <label class="field">
+        <span class="lbl">Jumlah Terjual (pcs)</span>
+        <input type="number" id="pcsQty" min="1" value="1" inputmode="numeric">
+      </label>
+      <div id="pcsPreview"></div>
+      <button class="btn btn-primary" onclick="submitPcs()">✅ Catat Penjualan Pcs</button>
+    </div>
+    <div class="card">
+      <h2>📋 Transaksi Item Pcs Hari Ini</h2>
+      <div id="pcsLog"><div class="empty">Belum ada transaksi.</div></div>
+    </div>
+  </section>
+
+  <!-- DANDANG -->
+  <section class="panel" id="panel-dandang">
+    <div class="card">
+      <h2>🫙 Proses Dandang (Set Racikan)</h2>
+      <p class="sub">Setiap 1 galon air didandang membutuhkan 1 toples set racikan dandang + 4 gram kayu secang. Input berapa galon yang direbus hari ini.</p>
+      <label class="field">
+        <span class="lbl">Jumlah Galon Diproses</span>
+        <input type="number" id="dandangQty" min="1" value="1" inputmode="numeric">
+      </label>
+      <div id="dandangPreview"></div>
+      <button class="btn btn-primary" onclick="submitDandang()">✅ Catat Proses Dandang</button>
+    </div>
+    <div class="card">
+      <h2>📋 Riwayat Proses Dandang Hari Ini</h2>
+      <div id="dandangLog"><div class="empty">Belum ada proses dandang.</div></div>
+    </div>
+  </section>
+
+  <!-- RUSAK -->
+  <section class="panel" id="panel-rusak">
+    <div class="card">
+      <h2>🗑️ Input Bahan Rusak / Busuk</h2>
+      <p class="sub">Dicatat terpisah dari penjualan. Berat/jumlah ditimbang manual lalu diinput di sini — akan tetap mengurangi stok tapi ditandai sebagai "rusak" pada laporan.</p>
+      <label class="field">
+        <span class="lbl">Bahan</span>
+        <select id="rusakSelect"></select>
+      </label>
+      <label class="field">
+        <span class="lbl">Jumlah Rusak (<span id="rusakUnit">gram</span>)</span>
+        <input type="number" id="rusakQty" min="0" step="0.1" inputmode="decimal">
+      </label>
+      <label class="field">
+        <span class="lbl">Catatan (opsional)</span>
+        <input type="text" id="rusakNote" placeholder="cth: layu, jamur, kadaluarsa...">
+      </label>
+      <button class="btn btn-danger" onclick="submitRusak()">🗑️ Catat Bahan Rusak</button>
+    </div>
+    <div class="card">
+      <h2>📋 Catatan Bahan Rusak Hari Ini</h2>
+      <div id="rusakLog"><div class="empty">Belum ada catatan bahan rusak.</div></div>
+    </div>
+  </section>
+
+  <!-- RIWAYAT -->
+  <section class="panel" id="panel-riwayat">
+    <div class="card">
+      <h2>📚 Riwayat Laporan Tersimpan</h2>
+      <p class="sub">Laporan PDF yang pernah dibuat. Data ini tersimpan di perangkat ini saja.</p>
+      <div id="historyList"><div class="empty">Belum ada laporan tersimpan.</div></div>
+    </div>
+  </section>
+</main>
+
+<div class="install-banner" id="installBanner">
+  <div>
+    <b>Install SO Rempah</b>
+    <span>Pasang di layar utama untuk akses cepat offline</span>
+  </div>
+  <button class="btn btn-dark btn-sm" onclick="doInstall()">Install</button>
+  <button class="btn-ghost btn-sm" style="color:#fff;border-color:rgba(255,255,255,.3)" onclick="dismissInstall()">✕</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ========================= DATA MASTER ========================= */
+
+// Satuan dasar: gram untuk padatan, mili(ml) untuk cair, pcs untuk satuan
+const BAHAN = {
+  bunga_lawang:   { nama:"Bunga Lawang",        unit:"gram", stokAwal:1000 },
+  cabe_jawa:      { nama:"Cabe Jawa",            unit:"gram", stokAwal:1000 },
+  cengkeh:        { nama:"Cengkeh",              unit:"gram", stokAwal:1000 }, // qty tidak disebut eksplisit awalnya, default 1000g
+  gula_aren_cair: { nama:"Gula Aren Cair",       unit:"ml",   stokAwal:12000 },
+  gula_batu_wu:   { nama:"Gula Batu Wedang Uwuh",unit:"gram", stokAwal:250 },
+  jahe_merah:     { nama:"Jahe Merah",           unit:"gram", stokAwal:12000 },
+  kapulaga:       { nama:"Kapulaga",             unit:"gram", stokAwal:1000 },
+  kayu_manis:     { nama:"Kayu Manis",           unit:"gram", stokAwal:1000 },
+  kayu_secang:    { nama:"Kayu Secang",          unit:"gram", stokAwal:1000 },
+  kencur:         { nama:"Kencur",               unit:"gram", stokAwal:2000 },
+  lemon:          { nama:"Lemon",                unit:"ml",   stokAwal:2000 }, // catatan: satuan asli kg buah, dipakai ml perasan+iris — lihat catatan lemon
+  madu:           { nama:"Madu",                 unit:"ml",   stokAwal:6000 },
+  purwaceng:      { nama:"Purwaceng",            unit:"ml",   stokAwal:500 },
+  temulawak:      { nama:"Temulawak",            unit:"gram", stokAwal:2000 },
+  daun_pandan:    { nama:"Daun Pandan",          unit:"gram", stokAwal:50 },
+  sereh:          { nama:"Sereh",                unit:"gram", stokAwal:200 },
+  kopi_bandung:   { nama:"Kopi Aroma Bandung",   unit:"ml",   stokAwal:250 },
+  set_dandang:    { nama:"Set Racikan Dandang",  unit:"toples", stokAwal:15 },
+  susu:           { nama:"Susu",                 unit:"gram", stokAwal:4000 },
+  telur_bebek:    { nama:"Telur Bebek",          unit:"butir", stokAwal:15 },
+  cup_plastik:    { nama:"Cup Plastik (take away)", unit:"pcs", stokAwal:300 },
+};
+
+// Item yang dijual per pcs langsung (bukan racikan minuman)
+const ITEM_PCS = {
+  tinting_kacang: { nama:"Tinting Kacang", stokAwal:0, note:"Belum diisi / belum datang" },
+  kue_bangke_jahe:{ nama:"Kue Bangke Jahe", stokAwal:50 },
+  kue_bolu:       { nama:"Kue Bolu", stokAwal:60 },
+  wedang_uwuh_pcs:{ nama:"Wedang Uwuh (pcs)", stokAwal:30 },
+};
+
+// Resep per 1 PORSI minuman (sudah dikonversi dari basis "per 5 porsi" dsb ke per 1 porsi)
+// bunga lawang: 3g/5porsi = 0.6g/porsi; cabe jawa: 3g/5=0.6; cengkeh: 2g/5=0.4;
+// kapulaga: 2g/5=0.4; kayu manis: 1g/5=0.2; daun pandan: 2g/5=0.4; sereh: 2g/5=0.4 (opsional)
+const REMPAH_DASAR = {
+  bunga_lawang: 0.6, cabe_jawa: 0.6, cengkeh: 0.4, kapulaga: 0.4, kayu_manis: 0.2,
+  jahe_merah: 30, gula_aren_cair: 30, madu: 10
+};
+const OPSIONAL = { sereh: 0.4, daun_pandan: 0.4 }; // opsional, diinput terpisah per porsi jika dicentang
+
+const MENU = {
+  rempah_original: {
+    nama:"Rempah Original",
+    bahan:{ ...REMPAH_DASAR }
+  },
+  rempah_jahe_lemon: {
+    nama:"Rempah Jahe Lemon",
+    bahan:{ ...REMPAH_DASAR, lemon:5 } // + 1 iris lemon dicatat manual terpisah (lihat catatan)
+  },
+  rempah_lemon_susu: {
+    nama:"Rempah Lemon Susu",
+    bahan:{ ...REMPAH_DASAR, lemon:5, susu:30 }
+  },
+  bir_pletok_susu: {
+    nama:"Bir Pletok Susu",
+    bahan:{ ...REMPAH_DASAR, kayu_secang:4, susu:30 }
+  },
+  wedang_uwuh: {
+    nama:"Wedang Uwuh",
+    bahan:{ jahe_merah:15, gula_batu_wu:10 },
+    pcsBahan:{ wedang_uwuh_pcs:1 }
+  },
+  rempah_kencur_madu: {
+    nama:"Rempah Kencur Madu",
+    bahan:{ cengkeh:0.4, kapulaga:0.4, bunga_lawang:0.6, cabe_jawa:0.6, kayu_manis:0.2, jahe_merah:30, kencur:10, gula_aren_cair:30, madu:10, lemon:5 }
+  },
+  bir_pletok_original: {
+    nama:"Bir Pletok Original",
+    bahan:{ ...REMPAH_DASAR, kayu_secang:4 }
+  },
+  rempah_temulawak_susu: {
+    nama:"Rempah Temulawak Susu",
+    bahan:{ cengkeh:0.4, kapulaga:0.4, bunga_lawang:0.6, cabe_jawa:0.6, kayu_manis:0.2, jahe_merah:30, temulawak:20, gula_aren_cair:30, madu:10, susu:30, lemon:5 }
+  },
+  rempah_temulawak_original: {
+    nama:"Rempah Temulawak Original",
+    bahan:{ cengkeh:0.4, kapulaga:0.4, bunga_lawang:0.6, cabe_jawa:0.6, kayu_manis:0.2, jahe_merah:30, temulawak:20, gula_aren_cair:30, madu:10, lemon:5 }
+  },
+  stmj: {
+    nama:"STMJ",
+    bahan:{ ...REMPAH_DASAR, susu:30, telur_bebek:1 }
+  },
+  rempah_susu_aren: {
+    nama:"Rempah Susu Aren",
+    bahan:{ ...REMPAH_DASAR, susu:30 }
+  },
+  kopi_ranjang_hitam: {
+    nama:"Kopi Ranjang Hitam",
+    bahan:{ cengkeh:0.4, kapulaga:0.4, bunga_lawang:0.6, cabe_jawa:0.6, kayu_manis:0.2, jahe_merah:30, gula_aren_cair:30, kopi_bandung:10, purwaceng:5 }
+  },
+  kopi_ranjang_susu: {
+    nama:"Kopi Ranjang Susu",
+    bahan:{ cengkeh:0.4, kapulaga:0.4, bunga_lawang:0.6, cabe_jawa:0.6, kayu_manis:0.2, jahe_merah:30, gula_aren_cair:30, kopi_bandung:10, purwaceng:5, susu:30 }
+  },
+};
+
+const HARGA_PCS = {
+  tinting_kacang:  { satu:2000, tiga:5000 },
+  kue_bangke_jahe: { satu:2000, tiga:5000 },
+  kue_bolu:        { satu:2000, tiga:5000 },
+};
+
+const DANDANG = { set_dandang:1, kayu_secang:4 }; // per 1 galon
+
+/* ========================= STATE / STORAGE ========================= */
+
+const LS_STOK = "so_stok_v1";
+const LS_PCS_STOK = "so_pcs_stok_v1";
+const LS_TX_JUAL = "so_tx_jual_v1";
+const LS_TX_PCS = "so_tx_pcs_v1";
+const LS_TX_DANDANG = "so_tx_dandang_v1";
+const LS_TX_RUSAK = "so_tx_rusak_v1";
+const LS_TX_KIRIMAN = "so_tx_kiriman_v1";
+const LS_TX_KOREKSI = "so_tx_koreksi_v1";
+const LS_HISTORY = "so_history_v1";
+const LS_LASTDATE = "so_lastdate_v1";
+
+function todayStr(){
+  const d = new Date();
+  return d.toISOString().slice(0,10);
+}
+
+function loadJSON(key, fallback){
+  try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch(e){ return fallback; }
+}
+function saveJSON(key, val){ localStorage.setItem(key, JSON.stringify(val)); }
+
+function defaultStok(){
+  const s = {};
+  for(const k in BAHAN) s[k] = BAHAN[k].stokAwal;
+  return s;
+}
+function defaultPcsStok(){
+  const s = {};
+  for(const k in ITEM_PCS) s[k] = ITEM_PCS[k].stokAwal;
+  return s;
+}
+
+let stok = loadJSON(LS_STOK, defaultStok());
+let pcsStok = loadJSON(LS_PCS_STOK, defaultPcsStok());
+let txJual = loadJSON(LS_TX_JUAL, []);
+let txPcs = loadJSON(LS_TX_PCS, []);
+let txDandang = loadJSON(LS_TX_DANDANG, []);
+let txRusak = loadJSON(LS_TX_RUSAK, []);
+let txKiriman = loadJSON(LS_TX_KIRIMAN, []);
+let txKoreksi = loadJSON(LS_TX_KOREKSI, []);
+let history = loadJSON(LS_HISTORY, []);
+
+// auto-reset transaksi harian jika tanggal berganti (stok tetap carry-over)
+function checkDayRollover(){
+  const last = localStorage.getItem(LS_LASTDATE);
+  const now = todayStr();
+  if(last && last !== now){
+    txJual = []; txPcs = []; txDandang = []; txRusak = []; txKiriman = []; txKoreksi = [];
+    saveJSON(LS_TX_JUAL, txJual); saveJSON(LS_TX_PCS, txPcs);
+    saveJSON(LS_TX_DANDANG, txDandang); saveJSON(LS_TX_RUSAK, txRusak);
+    saveJSON(LS_TX_KIRIMAN, txKiriman); saveJSON(LS_TX_KOREKSI, txKoreksi);
+  }
+  localStorage.setItem(LS_LASTDATE, now);
+}
+checkDayRollover();
+
+function persistAll(){
+  saveJSON(LS_STOK, stok);
+  saveJSON(LS_PCS_STOK, pcsStok);
+  saveJSON(LS_TX_JUAL, txJual);
+  saveJSON(LS_TX_PCS, txPcs);
+  saveJSON(LS_TX_DANDANG, txDandang);
+  saveJSON(LS_TX_RUSAK, txRusak);
+  saveJSON(LS_TX_KIRIMAN, txKiriman);
+  saveJSON(LS_TX_KOREKSI, txKoreksi);
+  saveJSON(LS_HISTORY, history);
+}
+
+/* ========================= UI HELPERS ========================= */
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+function fmt(n){
+  if(Number.isInteger(n)) return n.toLocaleString('id-ID');
+  return n.toLocaleString('id-ID', {maximumFractionDigits:2});
+}
+
+function unitLabel(u){
+  return u === "ml" ? "ml" : u === "gram" ? "g" : u === "butir" ? "butir" : u === "toples" ? "toples" : "pcs";
+}
+
+/* ========================= TABS ========================= */
+
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-'+tab.dataset.tab).classList.add('active');
+    if(tab.dataset.tab === 'stok') renderStok();
+    if(tab.dataset.tab === 'riwayat') renderHistory();
+    if(tab.dataset.tab === 'kiriman' && kirimanRowCount === 0) addKirimanRow();
+  });
+});
+
+/* ========================= RENDER: STOK ========================= */
+
+function renderStok(){
+  const list = document.getElementById('stokList');
+  let html = '';
+  let critCount = 0, lowCount = 0;
+
+  const groups = [
+    { label:"Rempah Kering", keys:["bunga_lawang","cabe_jawa","cengkeh","kapulaga","kayu_manis","kayu_secang","kencur","temulawak","daun_pandan","sereh"] },
+    { label:"Cair / Basah", keys:["gula_aren_cair","lemon","madu","purwaceng","kopi_bandung"] },
+    { label:"Lainnya", keys:["gula_batu_wu","jahe_merah","susu","telur_bebek","set_dandang","cup_plastik"] },
+  ];
+
+  groups.forEach(g=>{
+    html += `<div class="group-label">${g.label}</div>`;
+    g.keys.forEach(k=>{
+      const b = BAHAN[k];
+      const cur = stok[k];
+      const pct = b.stokAwal > 0 ? (cur / b.stokAwal) * 100 : 0;
+      let cls = 'ok', barCls = '';
+      if(pct <= 15){ cls='crit'; barCls='crit'; critCount++; }
+      else if(pct <= 35){ cls='low'; barCls='warn'; lowCount++; }
+      html += `
+        <div class="stock-item" id="srow_bahan_${k}">
+          <div>
+            <div class="name">${b.nama}</div>
+            <div class="meta">awal: ${fmt(b.stokAwal)} ${unitLabel(b.unit)}</div>
+            <div class="stock-bar"><i class="${barCls}" style="width:${Math.max(0,Math.min(100,pct))}%"></i></div>
+          </div>
+          <div class="qty ${cls}" onclick="openStockEdit('bahan','${k}')" title="Ketuk untuk edit">${fmt(Math.max(0,cur))} <span style="font-size:11px;font-weight:600;">${unitLabel(b.unit)}</span> <span class="edit-pencil">✎</span></div>
+          <div class="edit-row" id="erow_bahan_${k}" style="display:none;">
+            <input type="number" step="0.1" id="einput_bahan_${k}" value="${cur}">
+            <button class="btn btn-primary btn-sm" onclick="saveStockEdit('bahan','${k}')">Simpan</button>
+            <button class="btn btn-ghost btn-sm" onclick="closeStockEdit('bahan','${k}')">Batal</button>
+          </div>
+        </div>`;
+    });
+  });
+
+  // pcs items
+  html += `<div class="group-label">Item Satuan (Pcs)</div>`;
+  for(const k in ITEM_PCS){
+    const it = ITEM_PCS[k];
+    const cur = pcsStok[k];
+    const pct = it.stokAwal > 0 ? (cur/it.stokAwal)*100 : (cur>0?100:0);
+    let cls='ok', barCls='';
+    if(it.stokAwal === 0){ cls = cur>0?'ok':'crit'; }
+    else if(pct<=15){cls='crit';barCls='crit';}
+    else if(pct<=35){cls='low';barCls='warn';}
+    html += `
+      <div class="stock-item" id="srow_pcs_${k}">
+        <div>
+          <div class="name">${it.nama}</div>
+          <div class="meta">${it.note ? it.note : 'awal: '+fmt(it.stokAwal)+' pcs'}</div>
+          ${it.stokAwal>0 ? `<div class="stock-bar"><i class="${barCls}" style="width:${Math.max(0,Math.min(100,pct))}%"></i></div>`:''}
+        </div>
+        <div class="qty ${cls}" onclick="openStockEdit('pcs','${k}')" title="Ketuk untuk edit">${fmt(Math.max(0,cur))} <span style="font-size:11px;font-weight:600;">pcs</span> <span class="edit-pencil">✎</span></div>
+        <div class="edit-row" id="erow_pcs_${k}" style="display:none;">
+          <input type="number" step="1" id="einput_pcs_${k}" value="${cur}">
+          <button class="btn btn-primary btn-sm" onclick="saveStockEdit('pcs','${k}')">Simpan</button>
+          <button class="btn btn-ghost btn-sm" onclick="closeStockEdit('pcs','${k}')">Batal</button>
+        </div>
+      </div>`;
+  }
+
+  list.innerHTML = html;
+
+  const banner = document.getElementById('stokBanner');
+  if(critCount > 0){
+    banner.innerHTML = `<div class="banner danger">⚠️ <div><b>${critCount} bahan kritis</b> (sisa di bawah 15%). Segera minta restock ke warehouse.</div></div>`;
+  } else if(lowCount > 0){
+    banner.innerHTML = `<div class="banner warn">🟠 <b>${lowCount} bahan mulai menipis</b> (di bawah 35%). Pantau untuk restock berikutnya.</div>`;
+  } else {
+    banner.innerHTML = `<div class="banner info">✅ Semua stok dalam kondisi aman.</div>`;
+  }
+}
+
+/* ========================= EDIT STOK MANUAL (KOREKSI) ========================= */
+
+function openStockEdit(kategori, key){
+  // tutup edit row lain yang mungkin terbuka
+  document.querySelectorAll('.edit-row').forEach(r=>r.style.display='none');
+  const row = document.getElementById(`erow_${kategori}_${key}`);
+  if(!row) return;
+  row.style.display = 'flex';
+  const input = document.getElementById(`einput_${kategori}_${key}`);
+  input.focus();
+  input.select();
+}
+
+function closeStockEdit(kategori, key){
+  const row = document.getElementById(`erow_${kategori}_${key}`);
+  if(row) row.style.display = 'none';
+}
+
+function saveStockEdit(kategori, key){
+  const input = document.getElementById(`einput_${kategori}_${key}`);
+  const newVal = parseFloat(input.value);
+  if(isNaN(newVal) || newVal < 0){ toast('Masukkan angka yang valid'); return; }
+
+  const nama = kategori === 'pcs' ? ITEM_PCS[key].nama : BAHAN[key].nama;
+  const unit = kategori === 'pcs' ? 'pcs' : unitLabel(BAHAN[key].unit);
+  const oldVal = kategori === 'pcs' ? pcsStok[key] : stok[key];
+
+  if(Math.abs(newVal - oldVal) < 0.0001){
+    closeStockEdit(kategori, key);
+    return;
+  }
+
+  if(!confirm(`Ubah stok "${nama}" dari ${fmt(oldVal)} ${unit} menjadi ${fmt(newVal)} ${unit}?`)){
+    return;
+  }
+
+  if(kategori === 'pcs') pcsStok[key] = newVal;
+  else stok[key] = newVal;
+
+  txKoreksi.push({
+    id: Date.now(),
+    nama, key, kategori, unit,
+    dari: oldVal, ke: newVal, selisih: newVal - oldVal,
+    time: new Date().toISOString(),
+  });
+
+  persistAll();
+  toast(`✎ Stok ${nama} dikoreksi jadi ${fmt(newVal)} ${unit}`);
+  renderStok();
+  renderKoreksiLog();
+}
+
+function renderKoreksiLog(){
+  const box = document.getElementById('koreksiLog');
+  if(!box) return;
+  if(txKoreksi.length === 0){ box.innerHTML = `<div class="empty">Belum ada koreksi stok hari ini.</div>`; return; }
+  let html = '';
+  [...txKoreksi].reverse().forEach(t=>{
+    const time = new Date(t.time).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+    const naik = t.selisih > 0;
+    html += `<div class="history-item">
+      <div>
+        <div class="d">${t.nama}</div>
+        <div class="s">${fmt(t.dari)} → ${fmt(t.ke)} ${t.unit} (${naik?'+':''}${fmt(t.selisih)}) · ${time}</div>
+      </div>
+    </div>`;
+  });
+  box.innerHTML = html;
+}
+
+/* ========================= INPUT JUAL (MENU) ========================= */
+
+const menuSelect = document.getElementById('menuSelect');
+for(const k in MENU){
+  const opt = document.createElement('option');
+  opt.value = k; opt.textContent = MENU[k].nama;
+  menuSelect.appendChild(opt);
+}
+
+function hasOptionalRelevance(menuKey){
+  // sereh & daun pandan opsional untuk semua menu rempah kecuali wedang uwuh
+  return menuKey !== 'wedang_uwuh';
+}
+function hasLemonSliceNote(menuKey){
+  return menuKey === 'rempah_jahe_lemon';
+}
+
+function renderOptionalWrap(){
+  const menuKey = menuSelect.value;
+  const wrap = document.getElementById('optionalWrap');
+  if(!hasOptionalRelevance(menuKey)){ wrap.innerHTML=''; return; }
+  wrap.innerHTML = `
+    <div style="margin:4px 0 14px;">
+      <span class="lbl" style="display:block;font-size:12.5px;font-weight:700;color:var(--ink-soft);margin-bottom:8px;">Tambahan Opsional (per porsi)</span>
+      <span class="chip-toggle" id="optSereh" onclick="toggleOpt('sereh')">🌿 Sereh (+0.4g/porsi)</span>
+      <span class="chip-toggle" id="optPandan" onclick="toggleOpt('daun_pandan')">🍃 Daun Pandan (+0.4g/porsi)</span>
+      ${hasLemonSliceNote(menuKey) ? `<div style="margin-top:6px;"><span class="chip-toggle" id="optLemonIris" onclick="toggleOpt('lemon_iris')">🍋 +1 Iris Lemon/porsi (manual)</span></div>` : ''}
+    </div>`;
+}
+let optState = { sereh:false, daun_pandan:false, lemon_iris:false };
+function toggleOpt(key){
+  optState[key] = !optState[key];
+  const idMap = { sereh:'optSereh', daun_pandan:'optPandan', lemon_iris:'optLemonIris' };
+  document.getElementById(idMap[key]).classList.toggle('on', optState[key]);
+  renderJualPreview();
+}
+
+menuSelect.addEventListener('change', ()=>{ optState={sereh:false,daun_pandan:false,lemon_iris:false}; renderOptionalWrap(); renderJualPreview(); });
+document.getElementById('menuQty').addEventListener('input', renderJualPreview);
+document.getElementById('menuTakeaway').addEventListener('change', renderJualPreview);
+
+function computeJualUsage(menuKey, qty, takeaway){
+  const menu = MENU[menuKey];
+  const usage = {}; // key -> amount
+  for(const b in menu.bahan) usage[b] = (usage[b]||0) + menu.bahan[b]*qty;
+  if(optState.sereh) usage.sereh = (usage.sereh||0) + OPSIONAL.sereh*qty;
+  if(optState.daun_pandan) usage.daun_pandan = (usage.daun_pandan||0) + OPSIONAL.daun_pandan*qty;
+  if(optState.lemon_iris) usage.lemon = (usage.lemon||0) + 1*qty; // dicatat sbg 1 satuan/porsi terpisah manual, digabung ke lemon dg unit "iris" -> kita catat qty saja, tidak potong stok ml lemon otomatis presisi; ditandai note
+  if(takeaway) usage.cup_plastik = (usage.cup_plastik||0) + 1*qty;
+  let pcsUsage = {};
+  if(menu.pcsBahan){ for(const p in menu.pcsBahan) pcsUsage[p] = (pcsUsage[p]||0) + menu.pcsBahan[p]*qty; }
+  return { usage, pcsUsage };
+}
+
+function renderJualPreview(){
+  const menuKey = menuSelect.value;
+  const qty = parseInt(document.getElementById('menuQty').value) || 0;
+  const takeaway = document.getElementById('menuTakeaway').value === '1';
+  const box = document.getElementById('jualPreview');
+  if(!menuKey || qty<=0){ box.innerHTML=''; return; }
+  const { usage, pcsUsage } = computeJualUsage(menuKey, qty, takeaway);
+  let html = `<div class="group-label">Bahan Terpakai</div>`;
+  let insufficientList = [];
+  for(const k in usage){
+    if(k==='lemon' && optState.lemon_iris && !MENU[menuKey].bahan.lemon){
+      html += `<div class="receipt-line"><span>Lemon (iris, manual)</span><span>${fmt(usage[k])} iris</span></div>`;
+      continue;
+    }
+    const b = BAHAN[k];
+    const remaining = stok[k] - usage[k];
+    if(remaining < 0) insufficientList.push(b.nama);
+    html += `<div class="receipt-line${remaining<0?' neg':''}"><span>${b.nama}</span><span>-${fmt(usage[k])} ${unitLabel(b.unit)}</span></div>`;
+  }
+  for(const k in pcsUsage){
+    const it = ITEM_PCS[k];
+    const remaining = pcsStok[k] - pcsUsage[k];
+    if(remaining < 0) insufficientList.push(it.nama);
+    html += `<div class="receipt-line${remaining<0?' neg':''}"><span>${it.nama}</span><span>-${fmt(pcsUsage[k])} pcs</span></div>`;
+  }
+  box.innerHTML = html;
+  if(insufficientList.length){
+    box.innerHTML = `<div class="banner danger">⚠️ Stok tidak cukup: ${insufficientList.join(', ')}</div>` + html;
+  }
+}
+renderOptionalWrap();
+renderJualPreview();
+
+function submitJual(){
+  const menuKey = menuSelect.value;
+  const qty = parseInt(document.getElementById('menuQty').value) || 0;
+  const takeaway = document.getElementById('menuTakeaway').value === '1';
+  if(qty<=0){ toast('Jumlah porsi harus lebih dari 0'); return; }
+  const { usage, pcsUsage } = computeJualUsage(menuKey, qty, takeaway);
+
+  for(const k in usage){
+    if(k==='lemon' && optState.lemon_iris && !MENU[menuKey].bahan.lemon) continue;
+    if(stok[k] - usage[k] < -0.0001){ toast('Stok '+BAHAN[k].nama+' tidak cukup!'); return; }
+  }
+  for(const k in pcsUsage){
+    if(pcsStok[k] - pcsUsage[k] < -0.0001){ toast('Stok '+ITEM_PCS[k].nama+' tidak cukup!'); return; }
+  }
+
+  for(const k in usage){
+    if(k==='lemon' && optState.lemon_iris && !MENU[menuKey].bahan.lemon) continue;
+    stok[k] -= usage[k];
+  }
+  for(const k in pcsUsage) pcsStok[k] -= pcsUsage[k];
+
+  txJual.push({
+    id: Date.now(),
+    menu: MENU[menuKey].nama,
+    menuKey, qty, takeaway,
+    lemonIris: optState.lemon_iris ? qty : 0,
+    sereh: optState.sereh, pandan: optState.daun_pandan,
+    time: new Date().toISOString(),
+  });
+  persistAll();
+  toast(`✅ ${qty} porsi ${MENU[menuKey].nama} dicatat`);
+  document.getElementById('menuQty').value = 1;
+  renderJualPreview();
+  renderJualLog();
+  renderStok();
+}
+
+function renderJualLog(){
+  const box = document.getElementById('jualLog');
+  if(txJual.length===0){ box.innerHTML = `<div class="empty">Belum ada transaksi.</div>`; return; }
+  let html='';
+  [...txJual].reverse().forEach(t=>{
+    const time = new Date(t.time).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+    html += `<div class="history-item">
+      <div>
+        <div class="d">${t.menu} × ${t.qty}</div>
+        <div class="s">${t.takeaway?'Take away':'Dine in'} · ${time}${t.sereh?' · +sereh':''}${t.pandan?' · +pandan':''}${t.lemonIris?' · +iris lemon':''}</div>
+      </div>
+    </div>`;
+  });
+  box.innerHTML = html;
+}
+renderJualLog();
+
+/* ========================= ITEM PCS ========================= */
+
+const pcsSelect = document.getElementById('pcsSelect');
+for(const k in ITEM_PCS){
+  const opt = document.createElement('option');
+  opt.value=k; opt.textContent = ITEM_PCS[k].nama;
+  pcsSelect.appendChild(opt);
+}
+pcsSelect.addEventListener('change', renderPcsPreview);
+document.getElementById('pcsQty').addEventListener('input', renderPcsPreview);
+
+function renderPcsPreview(){
+  const key = pcsSelect.value;
+  const qty = parseInt(document.getElementById('pcsQty').value)||0;
+  const box = document.getElementById('pcsPreview');
+  if(!key || qty<=0){ box.innerHTML=''; return; }
+  const remaining = pcsStok[key] - qty;
+  const harga = HARGA_PCS[key];
+  let hargaInfo = '';
+  if(harga){
+    const total = harga.tiga ? Math.floor(qty/3)*harga.tiga + (qty%3)*harga.satu : qty*harga.satu;
+    hargaInfo = `<div class="receipt-line"><span>Estimasi harga (3=${fmt(harga.tiga)}, 1=${fmt(harga.satu)})</span><span>Rp${fmt(total)}</span></div>`;
+  }
+  box.innerHTML = `
+    <div class="receipt-line${remaining<0?' neg':''}"><span>${ITEM_PCS[key].nama}</span><span>-${qty} pcs</span></div>
+    ${hargaInfo}
+    <div class="receipt-line"><span>Sisa setelah ini</span><span>${fmt(Math.max(0,remaining))} pcs</span></div>
+    ${remaining<0?'<div class="banner danger">⚠️ Stok tidak cukup</div>':''}
+  `;
+}
+
+function submitPcs(){
+  const key = pcsSelect.value;
+  const qty = parseInt(document.getElementById('pcsQty').value)||0;
+  if(qty<=0){ toast('Jumlah harus lebih dari 0'); return; }
+  if(pcsStok[key]-qty < 0){ toast('Stok tidak cukup!'); return; }
+  pcsStok[key]-=qty;
+  const harga = HARGA_PCS[key];
+  const total = harga ? (harga.tiga ? Math.floor(qty/3)*harga.tiga + (qty%3)*harga.satu : qty*harga.satu) : 0;
+  txPcs.push({ id:Date.now(), item:ITEM_PCS[key].nama, itemKey:key, qty, total, time:new Date().toISOString() });
+  persistAll();
+  toast(`✅ ${qty} pcs ${ITEM_PCS[key].nama} dicatat`);
+  document.getElementById('pcsQty').value=1;
+  renderPcsPreview(); renderPcsLog(); renderStok();
+}
+
+function renderPcsLog(){
+  const box = document.getElementById('pcsLog');
+  if(txPcs.length===0){ box.innerHTML=`<div class="empty">Belum ada transaksi.</div>`; return; }
+  let html='';
+  [...txPcs].reverse().forEach(t=>{
+    const time = new Date(t.time).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+    html += `<div class="history-item">
+      <div><div class="d">${t.item} × ${t.qty}</div><div class="s">${time}${t.total?' · Rp'+fmt(t.total):''}</div></div>
+    </div>`;
+  });
+  box.innerHTML = html;
+}
+renderPcsLog();
+
+/* ========================= DANDANG ========================= */
+
+document.getElementById('dandangQty').addEventListener('input', renderDandangPreview);
+function renderDandangPreview(){
+  const qty = parseInt(document.getElementById('dandangQty').value)||0;
+  const box = document.getElementById('dandangPreview');
+  if(qty<=0){ box.innerHTML=''; return; }
+  const setUsage = DANDANG.set_dandang*qty;
+  const secangUsage = DANDANG.kayu_secang*qty;
+  const remSet = stok.set_dandang - setUsage;
+  const remSecang = stok.kayu_secang - secangUsage;
+  box.innerHTML = `
+    <div class="receipt-line${remSet<0?' neg':''}"><span>Set Racikan Dandang</span><span>-${setUsage} toples</span></div>
+    <div class="receipt-line${remSecang<0?' neg':''}"><span>Kayu Secang</span><span>-${secangUsage} gram</span></div>
+    ${(remSet<0||remSecang<0)?'<div class="banner danger">⚠️ Stok tidak cukup</div>':''}
+  `;
+}
+renderDandangPreview();
+
+function submitDandang(){
+  const qty = parseInt(document.getElementById('dandangQty').value)||0;
+  if(qty<=0){ toast('Jumlah galon harus lebih dari 0'); return; }
+  const setUsage = DANDANG.set_dandang*qty;
+  const secangUsage = DANDANG.kayu_secang*qty;
+  if(stok.set_dandang-setUsage<0 || stok.kayu_secang-secangUsage<0){ toast('Stok tidak cukup!'); return; }
+  stok.set_dandang -= setUsage;
+  stok.kayu_secang -= secangUsage;
+  txDandang.push({ id:Date.now(), galon:qty, setUsage, secangUsage, time:new Date().toISOString() });
+  persistAll();
+  toast(`✅ ${qty} galon dandang dicatat`);
+  document.getElementById('dandangQty').value=1;
+  renderDandangPreview(); renderDandangLog(); renderStok();
+}
+
+function renderDandangLog(){
+  const box = document.getElementById('dandangLog');
+  if(txDandang.length===0){ box.innerHTML=`<div class="empty">Belum ada proses dandang.</div>`; return; }
+  let html='';
+  [...txDandang].reverse().forEach(t=>{
+    const time = new Date(t.time).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+    html += `<div class="history-item">
+      <div><div class="d">${t.galon} galon</div><div class="s">-${t.setUsage} toples set, -${t.secangUsage}g secang · ${time}</div></div>
+    </div>`;
+  });
+  box.innerHTML = html;
+}
+renderDandangLog();
+
+/* ========================= RUSAK ========================= */
+
+const rusakSelect = document.getElementById('rusakSelect');
+for(const k in BAHAN){
+  const opt = document.createElement('option');
+  opt.value=k; opt.textContent = BAHAN[k].nama;
+  rusakSelect.appendChild(opt);
+}
+rusakSelect.addEventListener('change', ()=>{
+  document.getElementById('rusakUnit').textContent = unitLabel(BAHAN[rusakSelect.value].unit);
+});
+document.getElementById('rusakUnit').textContent = unitLabel(BAHAN[rusakSelect.value].unit);
+
+function submitRusak(){
+  const key = rusakSelect.value;
+  const qty = parseFloat(document.getElementById('rusakQty').value);
+  const note = document.getElementById('rusakNote').value.trim();
+  if(!qty || qty<=0){ toast('Masukkan jumlah rusak yang valid'); return; }
+  if(stok[key]-qty < -0.0001){ toast('Jumlah melebihi sisa stok!'); return; }
+  stok[key] -= qty;
+  txRusak.push({ id:Date.now(), bahan:BAHAN[key].nama, bahanKey:key, qty, unit:BAHAN[key].unit, note, time:new Date().toISOString() });
+  persistAll();
+  toast(`🗑️ ${fmt(qty)} ${unitLabel(BAHAN[key].unit)} ${BAHAN[key].nama} dicatat rusak`);
+  document.getElementById('rusakQty').value='';
+  document.getElementById('rusakNote').value='';
+  renderRusakLog(); renderStok();
+}
+
+function renderRusakLog(){
+  const box = document.getElementById('rusakLog');
+  if(txRusak.length===0){ box.innerHTML=`<div class="empty">Belum ada catatan bahan rusak.</div>`; return; }
+  let html='';
+  [...txRusak].reverse().forEach(t=>{
+    const time = new Date(t.time).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+    html += `<div class="history-item">
+      <div><div class="d">${t.bahan} — ${fmt(t.qty)} ${unitLabel(t.unit)}</div><div class="s">${t.note?t.note+' · ':''}${time}</div></div>
+    </div>`;
+  });
+  box.innerHTML = html;
+}
+renderRusakLog();
+
+/* ========================= KIRIMAN (BARANG MASUK) ========================= */
+
+let kirimanRowCount = 0;
+const kirimanKategoriEl = document.getElementById('kirimanKategori');
+
+function kirimanOptionsHTML(kategori){
+  if(kategori === 'pcs'){
+    return Object.keys(ITEM_PCS).map(k=>`<option value="${k}">${ITEM_PCS[k].nama}</option>`).join('');
+  }
+  return Object.keys(BAHAN).map(k=>`<option value="${k}">${BAHAN[k].nama}</option>`).join('');
+}
+
+function addKirimanRow(){
+  kirimanRowCount++;
+  const id = 'krow_'+kirimanRowCount;
+  const kategori = kirimanKategoriEl.value;
+  const wrap = document.getElementById('kirimanRows');
+  const row = document.createElement('div');
+  row.className = 'row2';
+  row.id = id;
+  row.style.marginBottom = '10px';
+  row.innerHTML = `
+    <label class="field" style="margin-bottom:0;">
+      <span class="lbl">Bahan</span>
+      <select class="kiriman-item">${kirimanOptionsHTML(kategori)}</select>
+    </label>
+    <label class="field" style="margin-bottom:0;">
+      <span class="lbl">Jumlah Masuk</span>
+      <div style="display:flex; gap:6px;">
+        <input type="number" class="kiriman-qty" min="0" step="0.1" inputmode="decimal" placeholder="0" style="flex:1;">
+        <button class="btn-ghost btn-sm" style="flex-shrink:0;" onclick="removeKirimanRow('${id}')">✕</button>
+      </div>
+    </label>
+  `;
+  wrap.appendChild(row);
+  row.querySelector('.kiriman-item').addEventListener('change', renderKirimanPreview);
+  row.querySelector('.kiriman-qty').addEventListener('input', renderKirimanPreview);
+  renderKirimanPreview();
+}
+
+function removeKirimanRow(id){
+  const el = document.getElementById(id);
+  if(el) el.remove();
+  // pastikan minimal 1 baris tersisa
+  if(document.getElementById('kirimanRows').children.length === 0){
+    addKirimanRow();
+  } else {
+    renderKirimanPreview();
+  }
+}
+
+kirimanKategoriEl.addEventListener('change', ()=>{
+  document.getElementById('kirimanRows').innerHTML = '';
+  kirimanRowCount = 0;
+  addKirimanRow();
+});
+
+function unitForKiriman(kategori, key){
+  if(kategori === 'pcs') return 'pcs';
+  return unitLabel(BAHAN[key].unit);
+}
+
+function collectKirimanRows(){
+  const kategori = kirimanKategoriEl.value;
+  const rows = [...document.getElementById('kirimanRows').children];
+  const items = [];
+  rows.forEach(row=>{
+    const key = row.querySelector('.kiriman-item').value;
+    const qty = parseFloat(row.querySelector('.kiriman-qty').value);
+    if(key && qty > 0){
+      items.push({ key, qty, kategori });
+    }
+  });
+  return items;
+}
+
+function renderKirimanPreview(){
+  const items = collectKirimanRows();
+  const box = document.getElementById('kirimanPreview');
+  if(items.length === 0){ box.innerHTML=''; return; }
+  let html = `<div class="group-label">Stok Setelah Kiriman Masuk</div>`;
+  items.forEach(it=>{
+    const nama = it.kategori === 'pcs' ? ITEM_PCS[it.key].nama : BAHAN[it.key].nama;
+    const unit = unitForKiriman(it.kategori, it.key);
+    const currentStok = it.kategori === 'pcs' ? pcsStok[it.key] : stok[it.key];
+    const after = currentStok + it.qty;
+    html += `<div class="receipt-line"><span>${nama}</span><span>${fmt(currentStok)} → ${fmt(after)} ${unit}</span></div>`;
+  });
+  box.innerHTML = html;
+}
+
+function submitKiriman(){
+  const items = collectKirimanRows();
+  if(items.length === 0){ toast('Isi minimal satu bahan dengan jumlah lebih dari 0'); return; }
+
+  const note = document.getElementById('kirimanNote').value.trim();
+  const detail = [];
+
+  items.forEach(it=>{
+    if(it.kategori === 'pcs'){
+      pcsStok[it.key] += it.qty;
+      detail.push({ nama: ITEM_PCS[it.key].nama, key: it.key, kategori:'pcs', qty: it.qty, unit:'pcs' });
+    } else {
+      stok[it.key] += it.qty;
+      detail.push({ nama: BAHAN[it.key].nama, key: it.key, kategori:'bahan', qty: it.qty, unit: unitLabel(BAHAN[it.key].unit) });
+    }
+  });
+
+  txKiriman.push({
+    id: Date.now(),
+    detail,
+    note,
+    time: new Date().toISOString(),
+  });
+
+  persistAll();
+  toast(`📥 Kiriman ${items.length} bahan berhasil ditambahkan ke stok`);
+
+  document.getElementById('kirimanRows').innerHTML = '';
+  kirimanRowCount = 0;
+  addKirimanRow();
+  document.getElementById('kirimanNote').value = '';
+
+  renderKirimanLog();
+  renderStok();
+}
+
+function renderKirimanLog(){
+  const box = document.getElementById('kirimanLog');
+  if(txKiriman.length === 0){ box.innerHTML = `<div class="empty">Belum ada kiriman tercatat.</div>`; return; }
+  let html = '';
+  [...txKiriman].reverse().forEach(t=>{
+    const time = new Date(t.time).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+    const itemsStr = t.detail.map(d=>`${d.nama} +${fmt(d.qty)}${d.unit}`).join(', ');
+    html += `<div class="history-item">
+      <div>
+        <div class="d">${t.detail.length} item diterima</div>
+        <div class="s">${itemsStr}</div>
+        <div class="s">${t.note ? t.note+' · ' : ''}${time}</div>
+      </div>
+    </div>`;
+  });
+  box.innerHTML = html;
+}
+renderKirimanLog();
+
+/* ========================= RESET STOK ========================= */
+
+function openResetModal(){
+  if(confirm('Atur ulang SEMUA stok ke jumlah default awal dan hapus transaksi hari ini? Tindakan ini tidak bisa dibatalkan.')){
+    stok = defaultStok();
+    pcsStok = defaultPcsStok();
+    txJual = []; txPcs = []; txDandang = []; txRusak = []; txKiriman = []; txKoreksi = [];
+    persistAll();
+    toast('🔄 Stok berhasil direset ke kondisi awal');
+    renderStok(); renderJualLog(); renderPcsLog(); renderDandangLog(); renderRusakLog(); renderKirimanLog(); renderKoreksiLog();
+  }
+}
+
+/* ========================= PDF EXPORT ========================= */
+
+function generatePDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'mm', format:'a4' });
+  const dateNow = new Date();
+  const dateStr = dateNow.toLocaleDateString('id-ID',{ weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  const timeStr = dateNow.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+
+  let y = 18;
+  const left = 14, right = 196;
+
+  doc.setFont('helvetica','bold'); doc.setFontSize(16);
+  doc.setTextColor(61,43,31);
+  doc.text('LAPORAN STOK OPNAME HARIAN', left, y);
+  y += 6;
+  doc.setFont('helvetica','normal'); doc.setFontSize(10);
+  doc.setTextColor(90,90,90);
+  doc.text(`${dateStr} · dicetak ${timeStr}`, left, y);
+  y += 4;
+  doc.setDrawColor(220,200,160); doc.line(left, y, right, y);
+  y += 8;
+
+  // Section: Sisa Stok
+  doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(61,43,31);
+  doc.text('1. SISA STOK BAHAN BAKU', left, y); y+=6;
+
+  doc.setFontSize(9);
+  const colX = [left, left+70, left+100, left+130, right];
+  doc.setFont('helvetica','bold');
+  doc.text('Bahan', colX[0], y);
+  doc.text('Stok Awal', colX[1], y);
+  doc.text('Terpakai', colX[2], y);
+  doc.text('Sisa', colX[3], y);
+  y += 1.5; doc.setDrawColor(200,200,200); doc.line(left,y,right,y); y+=4;
+  doc.setFont('helvetica','normal');
+
+  for(const k in BAHAN){
+    if(y > 275){ doc.addPage(); y = 18; }
+    const b = BAHAN[k];
+    const sisa = Math.max(0, stok[k]);
+    const terpakai = b.stokAwal - stok[k];
+    doc.setTextColor(30,30,30);
+    doc.text(b.nama, colX[0], y);
+    doc.text(`${fmt(b.stokAwal)} ${unitLabel(b.unit)}`, colX[1], y);
+    doc.text(`${fmt(Math.max(0,terpakai))} ${unitLabel(b.unit)}`, colX[2], y);
+    doc.setTextColor(sisa/b.stokAwal<=0.15 ? 163:(sisa/b.stokAwal<=0.35?181:30), sisa/b.stokAwal<=0.15?53:(sisa/b.stokAwal<=0.35?80:30), 30);
+    doc.text(`${fmt(sisa)} ${unitLabel(b.unit)}`, colX[3], y);
+    y += 5.2;
+  }
+
+  y += 2;
+  doc.setFont('helvetica','bold'); doc.setFontSize(10); doc.setTextColor(61,43,31);
+  doc.text('Item Satuan (Pcs)', left, y); y += 5;
+  doc.setFont('helvetica','normal'); doc.setFontSize(9);
+  for(const k in ITEM_PCS){
+    if(y > 275){ doc.addPage(); y = 18; }
+    const it = ITEM_PCS[k];
+    const sisa = Math.max(0, pcsStok[k]);
+    const terpakai = it.stokAwal - pcsStok[k];
+    doc.setTextColor(30,30,30);
+    doc.text(it.nama, colX[0], y);
+    doc.text(`${fmt(it.stokAwal)} pcs`, colX[1], y);
+    doc.text(`${fmt(Math.max(0,terpakai))} pcs`, colX[2], y);
+    doc.text(`${fmt(sisa)} pcs`, colX[3], y);
+    y += 5.2;
+  }
+
+  y += 6;
+  if(y > 250){ doc.addPage(); y = 18; }
+  doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(76,122,76);
+  doc.text('2. KIRIMAN BAHAN BAKU MASUK', left, y); y += 6;
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  if(txKiriman.length === 0){
+    doc.setTextColor(120,120,120); doc.text('Tidak ada kiriman masuk hari ini.', left, y); y+=6;
+  } else {
+    doc.setFont('helvetica','bold'); doc.setTextColor(61,43,31);
+    doc.text('Bahan', colX[0], y); doc.text('Jumlah Masuk', colX[2], y); doc.text('Waktu', colX[3], y);
+    y += 1.5; doc.setDrawColor(200,200,200); doc.line(left,y,right,y); y += 4;
+    doc.setFont('helvetica','normal');
+    txKiriman.forEach(t=>{
+      const time = new Date(t.time).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
+      t.detail.forEach(d=>{
+        if(y > 275){ doc.addPage(); y = 18; }
+        doc.setTextColor(30,30,30);
+        doc.text(d.nama, colX[0], y);
+        doc.text(`+${fmt(d.qty)} ${d.unit}`, colX[2], y);
+        doc.text(time, colX[3], y);
+        y += 5.2;
+      });
+      if(t.note){
+        if(y > 275){ doc.addPage(); y = 18; }
+        doc.setFontSize(8); doc.setTextColor(120,120,120);
+        doc.text(`Catatan: ${t.note}`, colX[0], y);
+        doc.setFontSize(9);
+        y += 5;
+      }
+    });
+    y += 1;
+  }
+
+  y += 4;
+  if(y > 250){ doc.addPage(); y = 18; }
+  doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(140,100,20);
+  doc.text('3. KOREKSI STOK MANUAL', left, y); y += 6;
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  if(txKoreksi.length === 0){
+    doc.setTextColor(120,120,120); doc.text('Tidak ada koreksi stok hari ini.', left, y); y+=6;
+  } else {
+    doc.setFont('helvetica','bold'); doc.setTextColor(61,43,31);
+    doc.text('Bahan', colX[0], y); doc.text('Dari', colX[1], y); doc.text('Jadi', colX[2], y); doc.text('Selisih', colX[3], y);
+    y += 1.5; doc.setDrawColor(200,200,200); doc.line(left,y,right,y); y += 4;
+    doc.setFont('helvetica','normal');
+    txKoreksi.forEach(t=>{
+      if(y > 275){ doc.addPage(); y = 18; }
+      doc.setTextColor(30,30,30);
+      doc.text(t.nama, colX[0], y);
+      doc.text(`${fmt(t.dari)} ${t.unit}`, colX[1], y);
+      doc.text(`${fmt(t.ke)} ${t.unit}`, colX[2], y);
+      doc.setTextColor(t.selisih>=0?76:163, t.selisih>=0?122:53, t.selisih>=0?76:44);
+      doc.text(`${t.selisih>=0?'+':''}${fmt(t.selisih)}`, colX[3], y);
+      y += 5.2;
+    });
+  }
+
+  y += 4;
+  if(y > 250){ doc.addPage(); y = 18; }
+  doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(61,43,31);
+  doc.text('4. RINGKASAN PENJUALAN MINUMAN', left, y); y += 6;
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  if(txJual.length === 0){
+    doc.setTextColor(120,120,120); doc.text('Tidak ada transaksi hari ini.', left, y); y+=6;
+  } else {
+    const summary = {};
+    txJual.forEach(t=>{ summary[t.menu] = (summary[t.menu]||0) + t.qty; });
+    doc.setFont('helvetica','bold');
+    doc.text('Menu', colX[0], y); doc.text('Total Porsi Terjual', colX[2], y);
+    y += 1.5; doc.line(left,y,right,y); y += 4;
+    doc.setFont('helvetica','normal');
+    let totalPorsi = 0;
+    for(const menu in summary){
+      if(y > 275){ doc.addPage(); y = 18; }
+      doc.setTextColor(30,30,30);
+      doc.text(menu, colX[0], y);
+      doc.text(`${summary[menu]} porsi`, colX[2], y);
+      totalPorsi += summary[menu];
+      y += 5.2;
+    }
+    y += 1;
+    doc.setFont('helvetica','bold');
+    doc.text(`Total keseluruhan: ${totalPorsi} porsi (${txJual.length} transaksi)`, left, y);
+    y += 7;
+  }
+
+  if(y > 260){ doc.addPage(); y = 18; }
+  doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(61,43,31);
+  doc.text('5. PENJUALAN ITEM PCS', left, y); y += 6;
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  if(txPcs.length === 0){
+    doc.setTextColor(120,120,120); doc.text('Tidak ada transaksi hari ini.', left, y); y+=6;
+  } else {
+    const summaryPcs = {}; let totalUang = 0;
+    txPcs.forEach(t=>{ summaryPcs[t.item] = (summaryPcs[t.item]||0) + t.qty; totalUang += t.total||0; });
+    for(const item in summaryPcs){
+      if(y > 275){ doc.addPage(); y = 18; }
+      doc.setTextColor(30,30,30);
+      doc.text(item, colX[0], y);
+      doc.text(`${summaryPcs[item]} pcs`, colX[2], y);
+      y += 5.2;
+    }
+    y += 1;
+    doc.setFont('helvetica','bold');
+    doc.text(`Estimasi total pendapatan item pcs: Rp${fmt(totalUang)}`, left, y);
+    y += 7;
+  }
+
+  if(y > 260){ doc.addPage(); y = 18; }
+  doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(61,43,31);
+  doc.text('6. PROSES DANDANG', left, y); y += 6;
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  if(txDandang.length === 0){
+    doc.setTextColor(120,120,120); doc.text('Tidak ada proses dandang hari ini.', left, y); y+=6;
+  } else {
+    let totalGalon = 0;
+    txDandang.forEach(t=>totalGalon+=t.galon);
+    doc.setTextColor(30,30,30);
+    doc.text(`Total galon diproses: ${totalGalon} galon`, left, y); y+=5.2;
+    doc.text(`Total set racikan terpakai: ${totalGalon} toples`, left, y); y+=5.2;
+    doc.text(`Total kayu secang terpakai: ${totalGalon*4} gram`, left, y); y+=7;
+  }
+
+  if(y > 250){ doc.addPage(); y = 18; }
+  doc.setFont('helvetica','bold'); doc.setFontSize(12); doc.setTextColor(163,53,44);
+  doc.text('7. BAHAN RUSAK / BUSUK', left, y); y += 6;
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  if(txRusak.length === 0){
+    doc.setTextColor(120,120,120); doc.text('Tidak ada catatan bahan rusak hari ini.', left, y); y+=6;
+  } else {
+    doc.setFont('helvetica','bold'); doc.setTextColor(61,43,31);
+    doc.text('Bahan', colX[0], y); doc.text('Jumlah', colX[2], y); doc.text('Catatan', colX[3]-5, y);
+    y += 1.5; doc.line(left,y,right,y); y += 4;
+    doc.setFont('helvetica','normal');
+    txRusak.forEach(t=>{
+      if(y > 275){ doc.addPage(); y = 18; }
+      doc.setTextColor(30,30,30);
+      doc.text(t.bahan, colX[0], y);
+      doc.text(`${fmt(t.qty)} ${unitLabel(t.unit)}`, colX[2], y);
+      doc.setFontSize(8);
+      doc.text(t.note || '-', colX[3]-5, y, {maxWidth:35});
+      doc.setFontSize(9);
+      y += 5.2;
+    });
+  }
+
+  y += 6;
+  if(y > 280) { doc.addPage(); y = 18; }
+  doc.setDrawColor(220,200,160); doc.line(left,y,right,y); y+=6;
+  doc.setFontSize(8); doc.setTextColor(150,150,150);
+  doc.text('Dibuat otomatis oleh SO Rempah — Stok Opname Harian', left, y);
+
+  const filename = `SO-Rempah_${todayStr()}.pdf`;
+  doc.save(filename);
+
+  history.push({
+    id: Date.now(),
+    date: todayStr(),
+    time: dateNow.toISOString(),
+    filename,
+    totalTransaksi: txJual.length,
+    totalPorsi: txJual.reduce((a,t)=>a+t.qty,0),
+    totalRusak: txRusak.length,
+    totalKiriman: txKiriman.length,
+  });
+  persistAll();
+  toast('📄 Laporan PDF berhasil dibuat & diunduh');
+  renderHistory();
+}
+
+function renderHistory(){
+  const box = document.getElementById('historyList');
+  if(history.length===0){ box.innerHTML = `<div class="empty">Belum ada laporan tersimpan.</div>`; return; }
+  let html='';
+  [...history].reverse().forEach(h=>{
+    const d = new Date(h.time);
+    html += `<div class="history-item">
+      <div>
+        <div class="d">${h.filename}</div>
+        <div class="s">${d.toLocaleDateString('id-ID')} ${d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})} · ${h.totalPorsi} porsi terjual · ${h.totalKiriman||0} kiriman masuk · ${h.totalRusak} item rusak</div>
+      </div>
+    </div>`;
+  });
+  box.innerHTML = html;
+}
+
+/* ========================= CLOCK ========================= */
+
+function updateClock(){
+  const d = new Date();
+  document.getElementById('todayLabel').textContent = d.toLocaleDateString('id-ID',{weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  document.getElementById('clockLabel').textContent = d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+/* ========================= INITIAL RENDER ========================= */
+renderStok();
+renderKoreksiLog();
+
+/* ========================= PWA INSTALL ========================= */
+
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e)=>{
+  e.preventDefault();
+  deferredPrompt = e;
+  if(!localStorage.getItem('so_install_dismissed')){
+    document.getElementById('installBanner').style.display='flex';
+  }
+});
+function doInstall(){
+  document.getElementById('installBanner').style.display='none';
+  if(deferredPrompt){ deferredPrompt.prompt(); deferredPrompt=null; }
+}
+function dismissInstall(){
+  document.getElementById('installBanner').style.display='none';
+  localStorage.setItem('so_install_dismissed','1');
+}
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
